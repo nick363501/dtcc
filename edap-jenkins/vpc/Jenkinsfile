@@ -17,6 +17,7 @@
 		stages {
 			stage('Checkout and Setup CLI') {
 				steps {
+					checkout scm
 					sh params.awsBin + ' configure set aws_access_key_id $AWS_ACCESS_KEY_ID'
 					sh params.awsBin + ' configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY'
 					sh params.awsBin + ' configure set region ' + params.awsDefaultRegion
