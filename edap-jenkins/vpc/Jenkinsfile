@@ -17,7 +17,6 @@
 		stages {
 			stage('Checkout and Setup CLI') {
 				steps {
-					checkout scm
 					sh params.awsBin + ' configure set aws_access_key_id $AWS_ACCESS_KEY_ID'
 					sh params.awsBin + ' configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY'
 					sh params.awsBin + ' configure set region ' + params.awsDefaultRegion
@@ -40,7 +39,7 @@
 				script {
 				if (env.numVpcBuilt == '0') {
 					echo 'No VPC exist - Build'
-					sh params.awsBin + ' cloudformation create-stack --stack-name $STACK_NAME_PREFIX-sg --template-body file:///$WORKSPACE/edap-cloudformation/VPC/security-groups.json'
+					sh params.awsBin + ' cloudformation create-stack --stack-name $STACK_NAME_PREFIX-sg --template-body file:///$WORKSPACE/edap-cloudformation/VPC/vpc-subnets.json'
 					} else {
 						echo 'VPC Exist'
 						sh params.awsBin + ' cloudformation list-stacks |grep -C 2 $STACK_NAME_PREFIX-sg|grep -C 3 CREATE_COMPLETE'
@@ -58,7 +57,7 @@
                 echo env.numSgBuilt
 				if (env.numSgBuilt == '0') {
 					echo 'No Security Goups exist - Build'
-					sh params.awsBin + ' cloudformation create-stack --stack-name $STACK_NAME_PREFIX-vpc-subnets --template-body file:///$WORKSPACE/edap-cloudformation/VPC/security-groups.json'
+					sh params.awsBin + ' cloudformation create-stack --stack-name $STACK_NAME_PREFIX-vpc-subnets --template-body file:///$WORKSPACE/edap-cloudformation/vpc/security-groups.json'
 					} else {
 						echo 'Security Groups Exist'
 						sh params.awsBin + ' cloudformation list-stacks |grep -C 2 $STACK_NAME_PREFIX-vpc-subnets|grep -C 3 CREATE_COMPLETE'
