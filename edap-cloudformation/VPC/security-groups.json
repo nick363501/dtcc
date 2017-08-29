@@ -1,0 +1,528 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Creates security groups and their ingress/egress rules for EMR Ingestion and Reporting (7 each)",
+  "Parameters": {
+    "ApplicationID": {
+      "Description": "Used to ID/segregate resources that are related to a specific application (tag)",
+      "Type": "String",
+      "Default": "dap",
+      "AllowedValues": [
+        "dap",
+        "tsm"
+      ]
+    },
+    "Environment": {
+      "Description": "Used to ID/segregate resources based on environment-level (tag)",
+      "Type": "String",
+      "Default": "dev",
+      "AllowedValues": [
+        "dev",
+        "qa-func",
+        "qa-perf",
+        "pse",
+        "lab",
+        "prod"
+      ]
+    },
+    "CreatedBy": {
+      "Description": "Created By (tag)",
+      "Type": "String",
+      "Default": "jenkins",
+      "AllowedValues": [
+        "jenkins"
+      ]
+    },
+    "Description": {
+      "Description": "An arbtrarty tag to be applied (tag)",
+      "Type": "String",
+      "Default": ""
+    },
+    "BundleName": {
+      "Description": "Bundle Name (naming convention)",
+      "Type": "String",
+      "Default": "pipe1",
+      "AllowedValues": [
+        "pipe1",
+        "pipe2"
+      ]
+    }
+  },
+  "Conditions": {
+
+  },
+  "Metadata": {
+    "AWS::CloudFormation::Interface": {
+      "ParameterGroups": [
+        {
+          "Label": {"default": "Tags"},
+          "Parameters": [
+            "TerminationDate",
+            "CostCenter",
+            "DataClass",
+            "ApplicationID",
+            "Environment",
+            "CreatedBy",
+            "Description",
+            "BundleName"
+          ]
+        },
+        {
+          "Label": {"default": "Base Templates"},
+          "Parameters": [
+
+          ]
+        }
+      ],
+      "ParameterLabels": {
+        "TerminationDate": {"default": "Termination Date"},
+        "CostCenter": {"default": "Cost Center"},
+        "DataClass": {"default": "Data Class"},
+        "ApplicationID": {"default": "Application ID"},
+        "CreatedBy": {"default": "Created By"},
+        "BundleName": {"default": "Bundle Name"}
+      }
+    }
+  },
+  "Resources": {
+    "IngestionMasterManagedSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+          "GroupName": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"ingestion","emr-master"]]},
+          "GroupDescription": "EMR-managed security group for master instances",
+          "VpcId": {"Fn::ImportValue": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"vpc-id"]]}}
+      }
+    },
+    "IngestionSlaveManagedSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+          "GroupName": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"ingestion","emr-slave"]]},
+          "GroupDescription": "EMR-managed security group for slave instances",
+          "VpcId": {"Fn::ImportValue": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"vpc-id"]]}}
+      }
+    },
+    "IngestionServiceAccessManagedSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+          "GroupName": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"ingestion","emr-service"]]},
+          "GroupDescription": "EMR-managed security group for service access",
+          "VpcId": {"Fn::ImportValue": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"vpc-id"]]}}
+      }
+    },
+    "IngestionAdditionalMasterSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+          "GroupName": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"ingestion","additional-emr-master"]]},
+          "GroupDescription": "Additional security group for EMR master instances",
+          "SecurityGroupEgress": [
+            {
+              "DestinationSecurityGroupId": {"Ref": "IngestionRDSSecurityGroup"},
+              "IpProtocol": "tcp",
+              "FromPort": "5432",
+              "ToPort": "5432"
+            },
+            {
+              "DestinationSecurityGroupId": {"Ref": "IngestionSSHSecurityGroup"},
+              "IpProtocol": "tcp",
+              "FromPort": "22",
+              "ToPort": "22"
+            },
+            {
+              "CidrIp": "0.0.0.0/0",
+              "IpProtocol": "tcp",
+              "FromPort": "80",
+              "ToPort": "80"
+            },
+            {
+              "CidrIp": "0.0.0.0/0",
+              "IpProtocol": "tcp",
+              "FromPort": "8080",
+              "ToPort": "8080"
+            },
+            {
+              "CidrIp": "0.0.0.0/0",
+              "IpProtocol": "tcp",
+              "FromPort": "443",
+              "ToPort": "443"
+            },
+            {
+              "CidrIp": "0.0.0.0/0",
+              "IpProtocol": "tcp",
+              "FromPort": "8443",
+              "ToPort": "8443"
+            }
+          ],
+          "SecurityGroupIngress": [
+            {
+              "SourceSecurityGroupId": {"Ref": "IngestionRDSSecurityGroup"},
+              "IpProtocol": "tcp",
+              "FromPort": "5432",
+              "ToPort": "5432"
+            },
+            {
+              "SourceSecurityGroupId": {"Ref": "IngestionSSHSecurityGroup"},
+              "IpProtocol": "tcp",
+              "FromPort": "22",
+              "ToPort": "22"
+            },
+            {
+              "CidrIp": "0.0.0.0/0",
+              "IpProtocol": "-1",
+              "FromPort": "80",
+              "ToPort": "80"
+            },
+            {
+              "CidrIp": "0.0.0.0/0",
+              "IpProtocol": "tcp",
+              "FromPort": "8080",
+              "ToPort": "8080"
+            },
+            {
+              "CidrIp": "0.0.0.0/0",
+              "IpProtocol": "tcp",
+              "FromPort": "443",
+              "ToPort": "443"
+            },
+            {
+              "CidrIp": "0.0.0.0/0",
+              "IpProtocol": "tcp",
+              "FromPort": "8443",
+              "ToPort": "8443"
+            }
+          ],
+          "VpcId": {"Fn::ImportValue": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"vpc-id"]]}}
+      }
+    },
+    "IngestionAdditionalSlaveSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+          "GroupName": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"ingestion","additional-emr-slave"]]},
+          "GroupDescription": "Additional security group for EMR slave instances",
+          "VpcId": {"Fn::ImportValue": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"vpc-id"]]}}
+      }
+    },
+    "IngestionRDSSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+          "GroupName": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"ingestion","rds"]]},
+          "GroupDescription": "Security group for RDS access",
+          "VpcId": {"Fn::ImportValue": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"vpc-id"]]}}
+      }
+    },
+    "IngestionSSHSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+          "GroupName": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"ingestion","ssh"]]},
+          "GroupDescription": "Security group for SSH access",
+          "SecurityGroupIngress": [
+            {
+              "CidrIp": "0.0.0.0/0",
+              "IpProtocol": "tcp",
+              "FromPort": "22",
+              "ToPort": "22"
+            }            
+          ],
+          "VpcId": {"Fn::ImportValue": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"vpc-id"]]}}
+      }
+    },
+    "ReportingMasterManagedSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+          "GroupName": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"reporting","emr-master"]]},
+          "GroupDescription": "EMR-managed security group for master instances",
+          "VpcId": {"Fn::ImportValue": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"vpc-id"]]}}
+      }
+    },
+    "ReportingSlaveManagedSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+          "GroupName": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"reporting","emr-slave"]]},
+          "GroupDescription": "EMR-managed security group for slave instances",
+          "VpcId": {"Fn::ImportValue": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"vpc-id"]]}}
+      }
+    },
+    "ReportingServiceAccessManagedSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+          "GroupName": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"reporting","emr-service"]]},
+          "GroupDescription": "EMR-managed security group for service access",
+          "VpcId": {"Fn::ImportValue": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"vpc-id"]]}}
+      }
+    },
+    "ReportingAdditionalMasterSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+          "GroupName": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"reporting","additional-emr-master"]]},
+          "GroupDescription": "Additional security group for EMR master instances",
+          "SecurityGroupEgress": [
+            {
+              "DestinationSecurityGroupId": {"Ref": "ReportingRDSSecurityGroup"},
+              "IpProtocol": "tcp",
+              "FromPort": "5432",
+              "ToPort": "5432"
+            },
+            {
+              "DestinationSecurityGroupId": {"Ref": "ReportingSSHSecurityGroup"},
+              "IpProtocol": "tcp",
+              "FromPort": "22",
+              "ToPort": "22"
+            },
+            {
+              "CidrIp": "0.0.0.0/0",
+              "IpProtocol": "tcp",
+              "FromPort": "80",
+              "ToPort": "80"
+            },
+            {
+              "CidrIp": "0.0.0.0/0",
+              "IpProtocol": "tcp",
+              "FromPort": "8080",
+              "ToPort": "8080"
+            },
+            {
+              "CidrIp": "0.0.0.0/0",
+              "IpProtocol": "tcp",
+              "FromPort": "443",
+              "ToPort": "443"
+            },
+            {
+              "CidrIp": "0.0.0.0/0",
+              "IpProtocol": "tcp",
+              "FromPort": "8443",
+              "ToPort": "8443"
+            }
+          ],
+          "SecurityGroupIngress": [
+            {
+              "SourceSecurityGroupId": {"Ref": "ReportingRDSSecurityGroup"},
+              "IpProtocol": "tcp",
+              "FromPort": "5432",
+              "ToPort": "5432"
+            },
+            {
+              "SourceSecurityGroupId": {"Ref": "ReportingSSHSecurityGroup"},
+              "IpProtocol": "tcp",
+              "FromPort": "22",
+              "ToPort": "22"
+            },
+            {
+              "CidrIp": "0.0.0.0/0",
+              "IpProtocol": "-1",
+              "FromPort": "80",
+              "ToPort": "80"
+            },
+            {
+              "CidrIp": "0.0.0.0/0",
+              "IpProtocol": "tcp",
+              "FromPort": "8080",
+              "ToPort": "8080"
+            },
+            {
+              "CidrIp": "0.0.0.0/0",
+              "IpProtocol": "tcp",
+              "FromPort": "443",
+              "ToPort": "443"
+            },
+            {
+              "CidrIp": "0.0.0.0/0",
+              "IpProtocol": "tcp",
+              "FromPort": "8443",
+              "ToPort": "8443"
+            }
+          ],
+          "VpcId": {"Fn::ImportValue": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"vpc-id"]]}}
+      }
+    },
+    "ReportingAdditionalSlaveSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+          "GroupName": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"reporting","additional-emr-slave"]]},
+          "GroupDescription": "Additional security group for EMR slave instances",
+          "VpcId": {"Fn::ImportValue": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"vpc-id"]]}}
+      }
+    },
+    "ReportingRDSSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+          "GroupName": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"reporting","rds"]]},
+          "GroupDescription": "Security group for RDS access",
+          "VpcId": {"Fn::ImportValue": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"vpc-id"]]}}
+      }
+    },
+    "ReportingSSHSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+          "GroupName": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"reporting","ssh"]]},
+          "GroupDescription": "Security group for SSH access",
+          "SecurityGroupIngress": [
+            {
+              "CidrIp": "0.0.0.0/0",
+              "IpProtocol": "tcp",
+              "FromPort": "22",
+              "ToPort": "22"
+            }            
+          ],
+          "VpcId": {"Fn::ImportValue": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"vpc-id"]]}}
+      }
+    },
+    "IngestionRDSSecurityGroup5432Ingress": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {"Ref": "IngestionRDSSecurityGroup"},
+        "SourceSecurityGroupId": {"Ref": "IngestionAdditionalMasterSecurityGroup"},
+        "IpProtocol": "tcp",
+        "FromPort": "5432",
+        "ToPort": "5432"
+      }
+    },
+    "IngestionRDSSecurityGroup5432Egress": {
+      "Type": "AWS::EC2::SecurityGroupEgress",
+      "Properties": {
+        "GroupId": {"Ref": "IngestionRDSSecurityGroup"},
+        "DestinationSecurityGroupId": {"Ref": "IngestionAdditionalMasterSecurityGroup"},
+        "IpProtocol": "tcp",
+        "FromPort": "5432",
+        "ToPort": "5432"
+      }
+    },
+    "IngestionSSHSecurityGroup22Egress": {
+      "Type": "AWS::EC2::SecurityGroupEgress",
+      "Properties": {
+        "GroupId": {"Ref": "IngestionSSHSecurityGroup"},
+        "DestinationSecurityGroupId": {"Ref": "IngestionAdditionalMasterSecurityGroup"},
+        "IpProtocol": "tcp",
+        "FromPort": "22",
+        "ToPort": "22"
+      }
+    },
+    "ReportingRDSSecurityGroup5432Ingress": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {"Ref": "ReportingRDSSecurityGroup"},
+        "SourceSecurityGroupId": {"Ref": "ReportingAdditionalMasterSecurityGroup"},
+        "IpProtocol": "tcp",
+        "FromPort": "5432",
+        "ToPort": "5432"
+      }
+    },
+    "ReportingRDSSecurityGroup5432Egress": {
+      "Type": "AWS::EC2::SecurityGroupEgress",
+      "Properties": {
+        "GroupId": {"Ref": "ReportingRDSSecurityGroup"},
+        "DestinationSecurityGroupId": {"Ref": "ReportingAdditionalMasterSecurityGroup"},
+        "IpProtocol": "tcp",
+        "FromPort": "5432",
+        "ToPort": "5432"
+      }
+    },
+    "ReportingSSHSecurityGroup22Egress": {
+      "Type": "AWS::EC2::SecurityGroupEgress",
+      "Properties": {
+        "GroupId": {"Ref": "ReportingSSHSecurityGroup"},
+        "DestinationSecurityGroupId": {"Ref": "ReportingAdditionalMasterSecurityGroup"},
+        "IpProtocol": "tcp",
+        "FromPort": "22",
+        "ToPort": "22"
+      }
+    }
+  },
+  "Outputs": {
+    "IngestionMasterManagedSecurityGroupID": {
+      "Description": "ID of IngestionMasterManagedSecurityGroup",
+      "Value": {"Ref": "IngestionMasterManagedSecurityGroup"},
+      "Export": {
+        "Name": {"Fn::Join": ["-", ["IngestionMasterManagedSecurityGroupID",{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"ingestion"]]}
+      }
+    },
+    "IngestionSlaveManagedSecurityGroupID": {
+      "Description": "ID of IngestionSlaveManagedSecurityGroup",
+      "Value": {"Ref": "IngestionSlaveManagedSecurityGroup"},
+      "Export": {
+        "Name": {"Fn::Join": ["-", ["IngestionSlaveManagedSecurityGroupID",{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"ingestion"]]}
+      }
+    },
+    "IngestionServiceAccessManagedSecurityGroupID": {
+      "Description": "ID of IngestionServiceAccessManagedSecurityGroup",
+      "Value": {"Ref": "IngestionServiceAccessManagedSecurityGroup"},
+      "Export": {
+        "Name": {"Fn::Join": ["-", ["IngestionServiceAccessManagedSecurityGroupID",{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"ingestion"]]}
+      }
+    },
+    "IngestionAdditionalMasterSecurityGroupID": {
+      "Description": "ID of IngestionAdditionalMasterSecurityGroup",
+      "Value": {"Ref": "IngestionAdditionalMasterSecurityGroup"},
+      "Export": {
+        "Name": {"Fn::Join": ["-", ["IngestionAdditionalMasterSecurityGroupID",{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"ingestion"]]}
+      }
+    },
+    "IngestionAdditionalSlaveSecurityGroupID": {
+      "Description": "ID of IngestionAdditionalSlaveSecurityGroup",
+      "Value": {"Ref": "IngestionAdditionalSlaveSecurityGroup"},
+      "Export": {
+        "Name": {"Fn::Join": ["-", ["IngestionAdditionalSlaveSecurityGroupID",{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"ingestion"]]}
+      }
+    },
+    "IngestionRDSSecurityGroupID": {
+      "Description": "ID of IngestionRDSSecurityGroup",
+      "Value": {"Ref": "IngestionRDSSecurityGroup"},
+      "Export": {
+        "Name": {"Fn::Join": ["-", ["IngestionRDSSecurityGroupID",{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"ingestion"]]}
+      }
+    },
+    "IngestionSSHSecurityGroupID": {
+      "Description": "ID of IngestionSSHSecurityGroup",
+      "Value": {"Ref": "IngestionSSHSecurityGroup"},
+      "Export": {
+        "Name": {"Fn::Join": ["-", ["IngestionSSHSecurityGroupID",{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"ingestion"]]}
+      }
+    },
+    "ReportingMasterManagedSecurityGroupID": {
+      "Description": "ID of ReportingMasterManagedSecurityGroup",
+      "Value": {"Ref": "ReportingMasterManagedSecurityGroup"},
+      "Export": {
+        "Name": {"Fn::Join": ["-", ["ReportingMasterManagedSecurityGroupID",{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"reporting"]]}
+      }
+    },
+    "ReportingSlaveManagedSecurityGroupID": {
+      "Description": "ID of ReportingSlaveManagedSecurityGroup",
+      "Value": {"Ref": "ReportingSlaveManagedSecurityGroup"},
+      "Export": {
+        "Name": {"Fn::Join": ["-", ["ReportingSlaveManagedSecurityGroupID",{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"reporting"]]}
+      }
+    },
+    "ReportingServiceAccessManagedSecurityGroupID": {
+      "Description": "ID of ReportingServiceAccessManagedSecurityGroup",
+      "Value": {"Ref": "ReportingServiceAccessManagedSecurityGroup"},
+      "Export": {
+        "Name": {"Fn::Join": ["-", ["ReportingServiceAccessManagedSecurityGroupID",{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"reporting"]]}
+      }
+    },
+    "ReportingAdditionalMasterSecurityGroupID": {
+      "Description": "ID of ReportingAdditionalMasterSecurityGroup",
+      "Value": {"Ref": "ReportingAdditionalMasterSecurityGroup"},
+      "Export": {
+        "Name": {"Fn::Join": ["-", ["ReportingAdditionalMasterSecurityGroupID",{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"reporting"]]}
+      }
+    },
+    "ReportingAdditionalSlaveSecurityGroupID": {
+      "Description": "ID of ReportingAdditionalSlaveSecurityGroup",
+      "Value": {"Ref": "ReportingAdditionalSlaveSecurityGroup"},
+      "Export": {
+        "Name": {"Fn::Join": ["-", ["ReportingAdditionalSlaveSecurityGroupID",{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"reporting"]]}
+      }
+    },
+    "ReportingRDSSecurityGroupID": {
+      "Description": "ID of ReportingRDSSecurityGroup",
+      "Value": {"Ref": "ReportingRDSSecurityGroup"},
+      "Export": {
+        "Name": {"Fn::Join": ["-", ["ReportingRDSSecurityGroupID",{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"reporting"]]}
+      }
+    },
+    "ReportingSSHSecurityGroupID": {
+      "Description": "ID of ReportingSSHSecurityGroup",
+      "Value": {"Ref": "ReportingSSHSecurityGroup"},
+      "Export": {
+        "Name": {"Fn::Join": ["-", ["ReportingSSHSecurityGroupID",{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"reporting"]]}
+      }
+    }
+  }
+}

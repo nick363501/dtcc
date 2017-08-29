@@ -1,0 +1,317 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Creates a generic VPC with public and private subnets (2) with private network internet access via NAT",
+  "Parameters": {
+    "ServerAccess": {
+      "Description": "CIDR block range allowed to login to the NAT instance",
+      "Type": "String",
+      "MinLength": "9",
+      "MaxLength": "18",
+      "Default": "0.0.0.0/0",
+      "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+      "ConstraintDescription": "must be a valid CIDR range of the form x.x.x.x/x."
+    },
+    "ApplicationID": {
+      "Description": "Used to ID/segregate resources that are related to a specific application (tag)",
+      "Type": "String",
+      "Default": "dap",
+      "AllowedValues": [
+        "dap",
+        "tsm"
+     ]
+    },
+    "Environment": {
+      "Description": "Used to ID/segregate resources based on environment-level (tag)",
+      "Type": "String",
+      "Default": "dev",
+      "AllowedValues": [
+        "dev",
+        "qa-func",
+        "qa-perf",
+        "pse",
+        "lab",
+        "prod"
+     ]
+    },
+    "CreatedBy": {
+      "Description": "Created By (tag)",
+      "Type": "String",
+      "Default": "jenkins",
+      "AllowedValues": [
+        "jenkins"
+     ]
+    },
+    "Description": {
+      "Description": "An arbtrarty tag to be applied (tag)",
+      "Type": "String",
+      "Default": ""
+      },
+    "BundleName": {
+      "Description": "Bundle Name (naming convention)",
+      "Type": "String",
+      "Default": "pipe1",
+      "AllowedValues": [
+        "pipe1",
+        "pipe2"
+     ]
+    },
+    "GenericFunction": {
+      "Description": "Generic Function (naming convention)",
+      "Type": "String",
+      "Default": "ingestion",
+      "AllowedValues": [
+        "ingestion",
+        "reporting"
+     ]
+    }
+  },
+  "Mappings": {
+      "SubnetConfig": {
+        "VPC": {"CIDR": "10.44.0.0/16" },
+        "Public": {"CIDR": "10.44.0.0/24" },
+        "PrivateSubnet1": {"CIDR": "10.44.1.0/24" },
+        "PrivateSubnet2": {"CIDR": "10.44.2.0/24" }
+      },
+      "NatRegionMap": {"us-east-1": {"AMI": "ami-303b1458" }}
+  },
+  "Resources": {
+      "VPC": {
+          "Type": "AWS::EC2::VPC",
+          "Properties": {
+              "CidrBlock": {"Fn::FindInMap": ["SubnetConfig", "VPC", "CIDR"]},
+              "Tags": [
+                  {"Key": "ApplicationID", "Value": {"Ref": "AWS::StackName" } },
+                  {"Key": "Network", "Value": "Public" },
+                  {"Key": "Name", "Value": "DTCC Test VPC" }
+             ]
+      }
+  },
+  
+  "PublicSubnet": {
+      "DependsOn": ["VPC"],
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+          "VpcId": {"Ref": "VPC" },
+          "CidrBlock": {"Fn::FindInMap": ["SubnetConfig", "Public", "CIDR"]},
+          "Tags": [
+          {"Key": "Application", "Value": {"Ref": "AWS::StackName" } },
+          {"Key": "Network", "Value": "Public" },
+          {"Key": "Name", "Value": "Public Subnet" }
+         ]
+      }
+  },
+  
+  "InternetGateway": {
+      "Type": "AWS::EC2::InternetGateway",
+      "Properties": {
+      "Tags": [
+          {"Key": "Application", "Value": {"Ref": "AWS::StackName" } },
+          {"Key": "Network", "Value": "Public" }
+         ]
+      }
+  },
+  
+  "GatewayToInternet": {
+      "DependsOn": ["VPC", "InternetGateway"],
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "Properties": {
+          "VpcId": {"Ref": "VPC" },
+          "InternetGatewayId": {"Ref": "InternetGateway" }
+      }
+  },
+  
+  "PublicRouteTable": {
+      "DependsOn": ["VPC"],
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+          "VpcId": {"Ref": "VPC" },
+          "Tags": [
+          {"Key": "Application", "Value": {"Ref": "AWS::StackName" } },
+          {"Key": "Network", "Value": "Public" }
+         ]
+      }
+  },
+  
+  "PublicRoute": {
+      "DependsOn": ["PublicRouteTable", "InternetGateway"],
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+          "RouteTableId": {"Ref": "PublicRouteTable" },
+          "DestinationCidrBlock": "0.0.0.0/0",
+          "GatewayId": {"Ref": "InternetGateway" }
+      }
+  },
+  
+  "PublicSubnetRouteTableAssociation": {
+      "DependsOn": ["PublicSubnet", "PublicRouteTable"],
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+          "SubnetId": {"Ref": "PublicSubnet" },
+          "RouteTableId": {"Ref": "PublicRouteTable" }
+      }
+  },
+  
+  "PrivateSubnet1": {
+      "DependsOn": ["VPC"],
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+          "VpcId": {"Ref": "VPC" },
+          "CidrBlock": {"Fn::FindInMap": ["SubnetConfig", "PrivateSubnet1", "CIDR"]},
+          "Tags": [
+              {"Key": "Application", "Value": {"Ref": "AWS::StackName" } },
+              {"Key": "Network", "Value": "PrivateSubnet1" },
+              {"Key": "Name", "Value": "Private Subnet 1" }
+         ]
+      }
+  },
+  
+  "PrivateSubnet2": {
+      "DependsOn": ["VPC"],
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+          "VpcId": {"Ref": "VPC" },
+          "CidrBlock": {"Fn::FindInMap": ["SubnetConfig", "PrivateSubnet2", "CIDR"]},
+          "Tags": [
+              {"Key": "Application", "Value": {"Ref": "AWS::StackName" } },
+              {"Key": "Network", "Value": "PrivateSubnet2" },
+              {"Key": "Name", "Value": "Private Subnet 2" }
+         ]
+      }
+  },
+  
+  "PrivateRoute1Table": {
+      "DependsOn": ["VPC"],
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+          "VpcId": {"Ref": "VPC" },
+          "Tags": [
+              {"Key": "Application", "Value": {"Ref": "AWS::StackName" } },
+              {"Key": "Network", "Value": "PrivateSubnet1" }
+         ]
+      }
+  },
+  
+  "PrivateRoute2Table": {
+      "DependsOn": ["VPC"],
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+          "VpcId": {"Ref": "VPC" },
+          "Tags": [
+              {"Key": "Application", "Value": {"Ref": "AWS::StackName" } },
+              {"Key": "Network", "Value": "PrivateSubnet2" }
+         ]
+      }
+  },
+  
+  "PrivateSubnet1RouteTableAssociation": {
+      "DependsOn": ["PrivateSubnet1", "PrivateRoute1Table"],
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+          "SubnetId": {"Ref": "PrivateSubnet1" },
+          "RouteTableId": {"Ref": "PrivateRoute1Table" }
+      }
+  },
+  
+  "PrivateSubnet2RouteTableAssociation": {
+      "DependsOn": ["PrivateSubnet2", "PrivateRoute2Table"],
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+          "SubnetId": {"Ref": "PrivateSubnet2" },
+          "RouteTableId": {"Ref": "PrivateRoute2Table" }
+      }
+  },
+  
+  "NatSecurityGroup": {
+      "DependsOn": ["VPC"],
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+          "GroupDescription": "NAT Security Group",
+          "VpcId": {"Ref": "VPC" },
+          "SecurityGroupIngress": [{
+              "IpProtocol": "tcp",
+              "FromPort": "22",
+              "ToPort": "22",
+              "CidrIp": {"Ref": "ServerAccess" }
+          },{
+              "IpProtocol": "tcp",
+              "FromPort": "3389",
+              "ToPort": "3389",
+              "CidrIp": {"Ref": "ServerAccess" }
+          }],
+              "Tags": [
+              {"Key": "Name", "Value": "NAT Security Group" }
+             ]
+      }
+  },
+
+  "NatSecurityGroupIngress1": {
+      "DependsOn": ["NatSecurityGroup"],
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+          "GroupId": {"Ref": "NatSecurityGroup" },
+          "IpProtocol": "icmp",
+          "FromPort": "-1",
+          "ToPort": "-1",
+          "SourceSecurityGroupId": {"Ref": "NatSecurityGroup" }
+      }
+  },
+
+  "NatSecurityGroupIngress22": {
+      "DependsOn": ["NatSecurityGroup"],
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+          "GroupId": {"Ref": "NatSecurityGroup" },
+          "IpProtocol": "tcp",
+          "FromPort": "22",
+          "ToPort": "22",
+          "SourceSecurityGroupId": {"Ref": "NatSecurityGroup" }
+      }
+  },
+
+  "NatSecurityGroupIngress3389": {
+      "DependsOn": ["NatSecurityGroup"],
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+          "GroupId": {"Ref": "NatSecurityGroup" },
+          "IpProtocol": "tcp",
+          "FromPort": "3389",
+          "ToPort": "3389",
+          "SourceSecurityGroupId": {"Ref": "NatSecurityGroup" }
+      }
+  },
+
+  "NatSecurityGroupIngress80": {
+      "DependsOn": ["NatSecurityGroup"],
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+          "GroupId": {"Ref": "NatSecurityGroup" },
+          "IpProtocol": "tcp",
+          "FromPort": "80",
+          "ToPort": "80",
+          "SourceSecurityGroupId": {"Ref": "NatSecurityGroup" }
+      }
+  },
+
+  "NatSecurityGroupIngress443": {
+      "DependsOn": ["NatSecurityGroup"],
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+          "GroupId": {"Ref": "NatSecurityGroup" },
+          "IpProtocol": "tcp",
+          "FromPort": "443",
+          "ToPort": "443",
+          "SourceSecurityGroupId": {"Ref": "NatSecurityGroup" }
+      }
+  }
+  },
+
+  "Outputs": {
+      "VPCID": {
+          "Description": "ID of VPC",
+          "Value": {"Ref": "VPC"},
+          "Export": {
+            "Name": {"Fn::Join": ["-", [{"Ref": "ApplicationID"},{"Ref": "Environment"},{"Ref": "BundleName"},"vpc-id"]]}
+          }
+      }
+  }
+}

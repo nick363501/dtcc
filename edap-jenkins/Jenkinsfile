@@ -1,0 +1,63 @@
+pipeline {
+    agent any
+    environment {
+        STACK_NAME_PREFIX = "${env.JOB_NAME}"
+        AWS_ACCESS_KEY_ID = credentials('dtcc_aws_access_key_id')
+        AWS_SECRET_ACCESS_KEY = credentials('dtcc_aws_secret_access_key')
+    }
+    parameters {
+        string(name: 'awsBin', defaultValue: 'aws')
+        string(name: 'awsDefaultRegion', defaultValue: 'us-east-1')
+        string(name: 'applicationID', description: 'Application ID (three letters)', defaultValue: 'dap')
+        string(name: 'environment', description: 'Environment', defaultValue: 'qa-perf')
+        
+
+        // Template-specific parameters
+    }
+    stages {
+        stage('Checkout and Setup CLI') {
+            steps {
+            	checkout scm
+                sh params.awsBin + ' configure set aws_access_key_id $AWS_ACCESS_KEY_ID'
+                sh params.awsBin + ' configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY'
+                sh params.awsBin + ' configure set region ' + params.awsDefaultRegion
+                sh params.awsBin + ' configure set output json'
+            }
+        }
+        stage('VPC and Subnets') {
+        
+        	environment {
+			numVpcBuilt = sh(script: "aws cloudformation list-stacks |grep -C 2 $STACK_NAME_PREFIX-vpc-subnets|grep CREATE_COMPLETE|wc -l", returnStdout: true).trim()
+			}
+			   steps {
+                echo 'Setting up parameter file for CloudFormation'
+				echo env.numVpcBuilt
+				script {
+				if (env.numVpcBuilt == '0') {
+					echo 'No VPC Exist  - Build'
+					} else {
+						echo 'VPC Exist'
+					}
+				}        
+            }
+		}
+		
+		stage('Security Groups') {
+        
+        	environment {
+			sgBuilt = sh(script: "aws cloudformation list-stacks |grep -C 2 $STACK_NAME_PREFIX-sg|grep CREATE_COMPLETE|wc -l", returnStdout: true).trim()
+			}
+			   steps {
+                echo 'Setting up parameter file for CloudFormation'
+				echo env.sgBuilt
+				script {
+				if (env.sgBuilt == '0') {
+					echo 'No VPC Exist  - Build'
+					} else {
+						echo 'VPC Exist'
+					}
+				}        
+            }
+		}
+	}
+}
