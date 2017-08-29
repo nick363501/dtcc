@@ -26,8 +26,8 @@
 			}
 			stage('Check for Existing') {
 				steps {
-				sh params.awsBin + ' cloudformation list-stacks|grep -P -C 3 "arn.*' + env.awsBin + '.*' + env.awsDefaultRegion + '.*$STACK_NAME_PREFIX-vpc-subnets.*|grep -C 3 CREATE_COMPLETE"|wc -l > vpcresult'
-				sh params.awsBin + ' cloudformation list-stacks|grep -P -C 3 "arn.*' + env.awsBin + '.*' + env.awsDefaultRegion + '.*$STACK_NAME_PREFIX-sg.*|grep -C 3 CREATE_COMPLETE"|wc -l > sgresult'
+				sh params.awsBin + ' cloudformation list-stacks|grep -P -C 3 "arn.*' + env.awsBin + '.*' + env.awsDefaultRegion + '.*$STACK_NAME_PREFIX-vpc-subnets.*"|grep CREATE_COMPLETE|wc -l > vpcresult'
+				sh params.awsBin + ' cloudformation list-stacks|grep -P -C 3 "arn.*' + env.awsBin + '.*' + env.awsDefaultRegion + '.*$STACK_NAME_PREFIX-sg.*"|grep CREATE_COMPLETE|wc -l > sgresult'
 				}
 			}
 			stage('Configure VPC') {
@@ -41,6 +41,7 @@
 				if (env.numVpcBuilt == '0') {
 					echo 'No VPC exist - Build'
 					sh params.awsBin + ' cloudformation create-stack --stack-name $STACK_NAME_PREFIX-vpc-subnets --template-body file:///$WORKSPACE/edap-cloudformation/VPC/vpc-subnets.json'
+					sleep 90
 					} else {
 						echo 'VPC Exist'
 						sh params.awsBin + ' cloudformation list-stacks |grep -C 2 $STACK_NAME_PREFIX-vpc-subnets|grep -C 3 CREATE_COMPLETE'
