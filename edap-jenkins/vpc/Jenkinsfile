@@ -48,7 +48,7 @@
 				}
 				}
 			}
-			stage('Configure VPC') {
+			stage('Configure Security Groups') {
 			   	environment {
 					numSgBuilt = sh(script: "cat sgresult", returnStdout: true).trim()
 				}
