@@ -26,8 +26,8 @@
 			}
 			stage('Check for Existing') {
 				steps {
-				sh params.awsBin + ' cloudformation list-stacks|grep -P -C 3 "arn.*' + env.awsBin + '.*' + env.awsDefaultRegion + '.*' + env.JOB_NAME + '-vpc-subnets.*|grep -C 3 CREATE_COMPLETE"|wc -l > vpcresult'
-				sh params.awsBin + ' cloudformation list-stacks|grep -P -C 3 "arn.*' + env.awsBin + '.*' + env.awsDefaultRegion + '.*' + env.JOB_NAME + '-sg.*|grep -C 3 CREATE_COMPLETE"|wc -l > sgresult'
+				sh params.awsBin + ' cloudformation list-stacks|grep -P -C 3 "arn.*' + env.awsBin + '.*' + env.awsDefaultRegion + '.*$STACK_NAME_PREFIX-vpc-subnets.*|grep -C 3 CREATE_COMPLETE"|wc -l > vpcresult'
+				sh params.awsBin + ' cloudformation list-stacks|grep -P -C 3 "arn.*' + env.awsBin + '.*' + env.awsDefaultRegion + '.*$STACK_NAME_PREFIX-sg.*|grep -C 3 CREATE_COMPLETE"|wc -l > sgresult'
 				}
 			}
 			stage('Configure VPC') {
